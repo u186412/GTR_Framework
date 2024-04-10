@@ -23,6 +23,13 @@ using namespace SCN;
 //some globals
 GFX::Mesh sphere;
 
+struct sRenderable { //TO-DO: para usar en el lab, ordenar nodos etc //IDEA: añadir renderables a un vector ordenado por distancia y renderizar por orden
+	Material* material;
+	GFX::Mesh* mesh;
+	mat4 model;
+	float distanceToCamera;
+};
+
 Renderer::Renderer(const char* shader_atlas_filename)
 {
 	render_wireframe = false;
