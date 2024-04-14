@@ -25,6 +25,8 @@ namespace SCN {
 	public:
 		bool render_wireframe;
 		bool render_boundaries;
+		bool use_multipass; //TODO: implement
+		bool render_lights;
 
 		GFX::Texture* skybox_cubemap;
 
@@ -49,11 +51,15 @@ namespace SCN {
 		void renderNode(SCN::Node* node, Camera* camera);
 
 		//to render one mesh given its material and transformation matrix
-		void renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material);
+		void renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material, bool SemitransparentPass);
+
+		//lab1
+		void renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material, bool SemitransparentPass);
 
 		void showUI();
 
 		void cameraToShader(Camera* camera, GFX::Shader* shader); //sends camera uniforms to shader
+		void lightToShader(LightEntity* light, GFX::Shader* shader); //send light uniforms to shader
 	};
 
 };
