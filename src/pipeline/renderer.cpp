@@ -34,9 +34,9 @@ std::vector<SCN::Node*> default_objects;
 std::vector<SCN::Node*> semitransparent_objects;
 std::vector<LightEntity*> lights;
 
-//bool compareDist(const Node& s1, const Node& s2) { 
-//	return s1.distance_to_camera < s2.distance_to_camera;
-//}
+bool compareDist(Node* s1, Node* s2) { 
+	return s1->distance_to_camera > s2->distance_to_camera;
+}
 
 Renderer::Renderer(const char* shader_atlas_filename)
 {
@@ -114,9 +114,9 @@ void Renderer::renderScene(SCN::Scene* scene, Camera* camera)
 	{
 		renderNode(default_objects[i], camera);
 	}
-	//lab1: render semitransparent entities
+	//render semitransparent entities
 	//sort blending vector - sorts nodes by distance in descending order
-	//std::sort(std::begin(semitransparent_objects), std::end(semitransparent_objects), compareDist);
+	std::sort(std::begin(semitransparent_objects), std::end(semitransparent_objects), compareDist);
 	for (int i = 0; i < semitransparent_objects.size(); i++)
 	{
 		renderNode(semitransparent_objects[i], camera);
@@ -179,16 +179,17 @@ void Renderer::renderNode(SCN::Node* node, Camera* camera)
 void Renderer::categorizeNodes(SCN::Node* node, Camera* camera) { //adds node and children nodes to their respective container
 
 	if (node->material && node->material->alpha_mode == SCN::eAlphaMode::BLEND) { //objects with transparency
-		Matrix44 model2 = node->model; //can't use getters on a const! //TODO: fix this shit, translation is last row
-		float dist = std::sqrt(std::pow(model2.getTranslation().x - camera->eye.x, 2) + std::pow(model2.getTranslation().y - camera->eye.y, 2) + std::pow(model2.getTranslation().z - camera->eye.z, 2));
-		//node->distance_to_camera = dist;
+		Matrix44 global_model = node->getGlobalMatrix(); //'fast' option does not work - global_model not set correctly?
+		float dist = std::sqrt(std::pow(global_model.getTranslation().x - camera->eye.x, 2) + std::pow(global_model.getTranslation().y - camera->eye.y, 2) + std::pow(global_model.getTranslation().z - camera->eye.z, 2));
+		node->distance_to_camera = dist;
 		semitransparent_objects.push_back(node);
 	}
 	else //other objects
 	{
-		Matrix44 model2 = node->model; //can't use getters on a const! //TODO: fix this shit, translation is last row
-		float dist = std::sqrt(std::pow(model2.getTranslation().x - camera->eye.x, 2) + std::pow(model2.getTranslation().y - camera->eye.y, 2) + std::pow(model2.getTranslation().z - camera->eye.z, 2));
-		//node->distance_to_camera = dist;
+		//distance is only really used for semitransparent nodes, ignore here to optimize resources
+		/*Matrix44 global_model = node->getGlobalMatrix();
+		float dist = std::sqrt(std::pow(global_model.getTranslation().x - camera->eye.x, 2) + std::pow(global_model.getTranslation().y - camera->eye.y, 2) + std::pow(global_model.getTranslation().z - camera->eye.z, 2));
+		node->distance_to_camera = dist; */
 		default_objects.push_back(node);
 	}
 	//iterate recursively with children
@@ -234,9 +235,6 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN
 	else
 		glEnable(GL_CULL_FACE);
 
-	//if (SemitransparentPass == false) {
-	//	glDisable(GL_CULL_FACE);
-	//}
 
     assert(glGetError() == GL_NO_ERROR);
 
@@ -316,9 +314,6 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	else
 		glEnable(GL_CULL_FACE);
 
-	//if (SemitransparentPass == false) {
-	//	glDisable(GL_CULL_FACE);
-	//}
 
 	assert(glGetError() == GL_NO_ERROR);
 

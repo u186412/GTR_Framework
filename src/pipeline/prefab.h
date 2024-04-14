@@ -31,7 +31,6 @@ namespace SCN {
 		static int s_NodeID;
 		static Node* s_selected;
 		int m_Id;
-		float distance_to_camera;
 
 	public:
 
@@ -44,6 +43,8 @@ namespace SCN {
 
 		Matrix44 model;	//the matrix that defines where is the object (in relation to its parent)
 		Matrix44 global_model;	//the matrix that defines where is the object (in relation to the world)
+
+		float distance_to_camera;
 
 		BoundingBox aabb; //node bounding box in world space
 
