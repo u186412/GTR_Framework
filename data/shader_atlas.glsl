@@ -1,7 +1,7 @@
 //example of some shaders compiled
 flat basic.vs flat.fs
 texture basic.vs texture.fs
-light basic.vs light.fs
+lightSP basic.vs lightSP.fs
 skybox basic.vs skybox.fs
 depth quad.vs depth.fs
 multi basic.vs multi.fs
@@ -106,11 +106,11 @@ void main()
 	FragColor = color;
 }
 
-\light.fs
+\lightSP.fs
 
 #version 330 core
 
-
+const int MAX_LIGHTS = 10;
 in vec3 v_position;
 in vec3 v_world_position;
 in vec3 v_normal;
@@ -124,8 +124,18 @@ uniform float u_alpha_cutoff;
 
 uniform vec3 u_ambient_light;
 
-uniform vec3 u_light_pos;
-uniform vec3 u_light_col;
+uniform vec3 u_light_pos[MAX_LIGHTS];
+uniform vec3 u_light_front[MAX_LIGHTS];
+uniform vec3 u_light_col[MAX_LIGHTS];
+uniform vec2 u_cone_info[MAX_LIGHTS];
+uniform float u_max_distance[MAX_LIGHTS];
+uniform int u_light_type[MAX_LIGHTS];
+		//NO_LIGHT = 0,
+		//POINT = 1,
+		//SPOT = 2,
+		//DIRECTIONAL = 3
+
+uniform int u_num_lights;
 
 out vec4 FragColor;
 
@@ -138,15 +148,53 @@ void main()
 	if(color.a < u_alpha_cutoff)
 		discard;
 
-	vec3 L = u_light_pos - v_world_position;
-	L= normalize(L);
-	vec3 N = normalize(v_normal);
-	//float NdotL = clamp(dot(N, L), 0.0, 1.0); //pixel facing light?
-	//float lightDist = distance(u_light_pos, v_world_position);
-	//float att_factor = 1.0/lightDist; //attenuate pixels by distance
-	//light += (NdotL * u_light_col) *att_factor;
+	vec3 light = u_ambient_light;
 
-	FragColor.xyz = color.xyz * u_ambient_light;
+	for (int i=0; i<MAX_LIGHTS; i++) {
+		if (i<u_num_lights) {
+			if (u_light_type[i] == 1) { 		//point lights
+				vec3 L = u_light_pos[i] - v_world_position;
+				L= normalize(L);
+				vec3 N = normalize(v_normal);
+				float NdotL = clamp(dot(N, L), 0.0, 1.0); 		//how much is pixel facing light
+				float lightDist = distance(u_light_pos[i], v_world_position);
+
+				float att_factor = u_max_distance[i] - lightDist;
+				att_factor = att_factor/u_max_distance[i];
+				att_factor = max(att_factor, 0.0);
+
+				light += (NdotL * u_light_col[i]) * att_factor;
+			}
+			else if (u_light_type[i] == 2) { //spot lights
+				vec3 L = u_light_pos[i] - v_world_position;
+				L= normalize(L);
+				float cos_angle = dot(u_light_front[i], -L);
+				vec3 N = normalize(v_normal);
+				float NdotL = clamp(dot(N, L), 0.0, 1.0); 		//how much is pixel facing light
+
+				if (cos_angle < u_cone_info[i].x) {
+					NdotL = 0.0;
+				}
+				else if (cos_angle < u_cone_info[i].y) {
+					NdotL *= (cos_angle - u_cone_info[i].x)/(u_cone_info[i].y - u_cone_info[i].x);
+				}
+				float lightDist = distance(u_light_pos[i], v_world_position);
+				float att_factor = u_max_distance[i] - lightDist;
+				att_factor = att_factor/u_max_distance[i];
+				att_factor = max(att_factor, 0.0);
+
+				light += (NdotL * u_light_col[i]) * att_factor;
+			}
+			else if (u_light_type[i] == 3) {		//directional lights
+				vec3 L = u_light_front[i];
+				vec3 N = normalize(v_normal);
+				float NdotL = clamp(dot(N, L), 0.0, 1.0);
+				light += NdotL * u_light_col[i];
+			}
+		}
+	}
+
+	FragColor.xyz = color.xyz * light;
 	FragColor.a = color.a;
 }
 

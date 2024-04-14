@@ -4,6 +4,8 @@
 
 #include "light.h"
 
+#define MAX_LIGHTS_SP 10
+
 //forward declarations
 class Camera;
 class Skeleton;
@@ -25,7 +27,7 @@ namespace SCN {
 	public:
 		bool render_wireframe;
 		bool render_boundaries;
-		bool use_multipass; //TODO: implement
+		bool use_multipass;
 		bool render_lights;
 
 		GFX::Texture* skybox_cubemap;
@@ -62,7 +64,7 @@ namespace SCN {
 		void showUI();
 
 		void cameraToShader(Camera* camera, GFX::Shader* shader); //sends camera uniforms to shader
-		void lightToShader(LightEntity* light, GFX::Shader* shader); //send light uniforms to shader
+		void lightToShaderSP(GFX::Shader* shader); //send light uniforms to shader for single-pass rendering
 	};
 
 };

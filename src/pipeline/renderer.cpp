@@ -16,7 +16,6 @@
 #include "../core/ui.h"
 
 #include "scene.h"
-#define MAX_LIGHTS_SP 10
 
 using namespace SCN;
 
@@ -45,7 +44,7 @@ Renderer::Renderer(const char* shader_atlas_filename)
 	scene = nullptr;
 	skybox_cubemap = nullptr;
 	use_multipass = false;
-	render_lights = false;
+	render_lights = true;
 
 	if (!GFX::Shader::LoadAtlas(shader_atlas_filename))
 		exit(1);
@@ -101,7 +100,8 @@ void Renderer::renderScene(SCN::Scene* scene, Camera* camera)
 				categorizeNodes(&pent->root, camera);
 		}
 		else if (ent->getType() == eEntityType::LIGHT) { //light objects
-			//IDEA: test sphere in frustum to cull invisible point (+spot) lights (no puntúa)
+			//IDEA: test sphere in frustum to cull invisible point (+spot) lights
+			//IDEA: test spheres to bounding boxes and cull invisible lights
 			//TO-DO: pasar primero antes de render!! otro bucle!
 			//downcast to EntityLight and store in light array
 			LightEntity* light = (SCN::LightEntity*)ent; 
@@ -109,7 +109,6 @@ void Renderer::renderScene(SCN::Scene* scene, Camera* camera)
 		}
 	}
 	//pass 2: render entities
-	//TO-DO: render default entities
 	for (int i = 0; i < default_objects.size(); i++)
 	{
 		renderNode(default_objects[i], camera);
@@ -291,6 +290,7 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	Camera* camera = Camera::current;
 
 	texture = material->textures[SCN::eTextureChannel::ALBEDO].texture;
+	//TO-DO implement all this, check ppt
 	//texture = material->emissive_texture;
 	//texture = material->metallic_roughness_texture;
 	//texture = material->normal_texture;
@@ -299,7 +299,6 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 		texture = GFX::Texture::getWhiteTexture(); //a 1x1 white texture
 
 	//select the blending
-	//lab1: send to global renderable vector, postpone rendering
 	if (material->alpha_mode == SCN::eAlphaMode::BLEND)
 	{
 			glEnable(GL_BLEND);
@@ -320,7 +319,7 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	glEnable(GL_DEPTH_TEST);
 
 	//chose a shader
-	shader = GFX::Shader::Get("light");
+	shader = GFX::Shader::Get("lightSP"); //TO-DO: sp or mp
 
 	assert(glGetError() == GL_NO_ERROR);
 
@@ -332,6 +331,7 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	//upload uniforms
 	shader->setUniform("u_model", model);
 	cameraToShader(camera, shader);
+	lightToShaderSP(shader); //TO-DO: multiple lights
 	float t = getTime();
 	shader->setUniform("u_time", t);
 	shader->setUniform("u_ambient_light", scene->ambient_light);
@@ -363,9 +363,28 @@ void SCN::Renderer::cameraToShader(Camera* camera, GFX::Shader* shader)
 	shader->setUniform("u_camera_position", camera->eye);
 }
 
-void SCN::Renderer::lightToShader(LightEntity* light, GFX::Shader* shader) { //implemented as seen in class //TODO: change for SP and MP
-	shader->setUniform("u_light_pos", light->root.model.getTranslation());
-	shader->setUniform("u_light_col", light->color * light->intensity);
+void SCN::Renderer::lightToShaderSP(GFX::Shader* shader) {
+	Vector3f light_positions[MAX_LIGHTS_SP];
+	Vector3f light_fronts[MAX_LIGHTS_SP];
+	Vector3f light_colors[MAX_LIGHTS_SP];
+	Vector2f cones_info[MAX_LIGHTS_SP];
+	float max_distances[MAX_LIGHTS_SP];
+	int light_types[MAX_LIGHTS_SP];
+	int num_lights = lights.size();
+	for (int i = 0; i < num_lights; i++) {
+		light_positions[i] = lights[i]->root.model.getTranslation();
+		light_fronts[i] = lights[i]->root.model.frontVector().normalize();
+		light_colors[i] = lights[i]->color * lights[i]->intensity;
+		cones_info[i] = lights[i]->cone_info;
+		max_distances[i] = lights[i]->max_distance;
+		light_types[i] = (int)lights[i]->light_type;
+	}
+	shader->setUniform("u_num_lights", num_lights);
+	shader->setUniform3Array("u_light_pos", (float*)&light_positions, MAX_LIGHTS_SP);
+	shader->setUniform3Array("u_light_front", (float*)&light_fronts, MAX_LIGHTS_SP);
+	shader->setUniform3Array("u_light_col", (float*)&light_colors, MAX_LIGHTS_SP);
+	shader->setUniform1Array("u_max_distance", (float*)&max_distances, MAX_LIGHTS_SP);
+	shader->setUniform1Array("u_light_type", (int*)&light_types, MAX_LIGHTS_SP);
 }
 
 #ifndef SKIP_IMGUI
