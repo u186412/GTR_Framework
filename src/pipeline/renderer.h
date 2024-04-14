@@ -50,11 +50,14 @@ namespace SCN {
 		//to render one node from the prefab and its children
 		void renderNode(SCN::Node* node, Camera* camera);
 
+		//sorts node and children nodes to their respective container
+		void categorizeNodes(SCN::Node* node, Camera* camera);
+
 		//to render one mesh given its material and transformation matrix
-		void renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material, bool SemitransparentPass);
+		void renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material);
 
 		//lab1
-		void renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material, bool SemitransparentPass);
+		void renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material);
 
 		void showUI();
 

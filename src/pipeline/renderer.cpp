@@ -23,19 +23,20 @@ using namespace SCN;
 //some globals
 GFX::Mesh sphere;
 
-struct sRenderable {
-	Material* material;
-	GFX::Mesh* mesh;
-	mat4 model;
-	float distanceToCamera;
-};
+//struct sRenderable {
+//	Material* material;
+//	GFX::Mesh* mesh;
+//	mat4 model;
+//	float distanceToCamera;
+//};
 
-std::vector<sRenderable> blendingNodes;
+std::vector<SCN::Node*> default_objects;
+std::vector<SCN::Node*> semitransparent_objects;
 std::vector<LightEntity*> lights;
 
-bool compareDist(const sRenderable& s1, const sRenderable& s2) { 
-	return s1.distanceToCamera < s2.distanceToCamera;
-}
+//bool compareDist(const Node& s1, const Node& s2) { 
+//	return s1.distance_to_camera < s2.distance_to_camera;
+//}
 
 Renderer::Renderer(const char* shader_atlas_filename)
 {
@@ -68,7 +69,8 @@ void Renderer::renderScene(SCN::Scene* scene, Camera* camera)
 	setupScene();
 	//clear lights and semitransparent nodes
 	lights.clear();
-	blendingNodes.clear();
+	semitransparent_objects.clear();
+	default_objects.clear();
 
 	glDisable(GL_BLEND);
 	glEnable(GL_DEPTH_TEST);
@@ -84,33 +86,40 @@ void Renderer::renderScene(SCN::Scene* scene, Camera* camera)
 	if(skybox_cubemap)
 		renderSkybox(skybox_cubemap);
 
-	//render entities
+	//pass 1: store entities in containers
 	for (int i = 0; i < scene->entities.size(); ++i)
 	{
 		BaseEntity* ent = scene->entities[i];
 		if (!ent->visible )
 			continue;
 
-		//is a prefab!
-		if (ent->getType() == eEntityType::PREFAB)
+		//categorize all objects into containers
+		if (ent->getType() == eEntityType::PREFAB) //prefabs
 		{
 			PrefabEntity* pent = (SCN::PrefabEntity*)ent;
 			if (pent->prefab)
-				renderNode( &pent->root, camera);
+				categorizeNodes(&pent->root, camera);
 		}
-		else if (ent->getType() == eEntityType::LIGHT) { //IDEA: test sphere in frustum to cull invisible point (+spot) lights (no puntúa)
+		else if (ent->getType() == eEntityType::LIGHT) { //light objects
+			//IDEA: test sphere in frustum to cull invisible point (+spot) lights (no puntúa)
+			//TO-DO: pasar primero antes de render!! otro bucle!
 			//downcast to EntityLight and store in light array
 			LightEntity* light = (SCN::LightEntity*)ent; 
 			lights.push_back(light);
 		}
 	}
+	//pass 2: render entities
+	//TO-DO: render default entities
+	for (int i = 0; i < default_objects.size(); i++)
+	{
+		renderNode(default_objects[i], camera);
+	}
 	//lab1: render semitransparent entities
 	//sort blending vector - sorts nodes by distance in descending order
-	std::sort(std::begin(blendingNodes), std::end(blendingNodes), compareDist);
-	for (int i = 0; i < blendingNodes.size(); i++)
+	//std::sort(std::begin(semitransparent_objects), std::end(semitransparent_objects), compareDist);
+	for (int i = 0; i < semitransparent_objects.size(); i++)
 	{
-		sRenderable ent = blendingNodes[i];
-		render_lights ? renderMeshWithMaterialLights(ent.model, ent.mesh, ent.material, true) : renderMeshWithMaterial(ent.model, ent.mesh, ent.material, true);
+		renderNode(semitransparent_objects[i], camera);
 	}
 }
 
@@ -162,17 +171,34 @@ void Renderer::renderNode(SCN::Node* node, Camera* camera)
 		{
 			if(render_boundaries)
 				node->mesh->renderBounding(node_model, true);
-			render_lights ? renderMeshWithMaterialLights(node_model, node->mesh, node->material, false) : renderMeshWithMaterial(node_model, node->mesh, node->material, false);
+			render_lights ? renderMeshWithMaterialLights(node_model, node->mesh, node->material) : renderMeshWithMaterial(node_model, node->mesh, node->material);
 		}
 	}
+}
 
+void Renderer::categorizeNodes(SCN::Node* node, Camera* camera) { //adds node and children nodes to their respective container
+
+	if (node->material && node->material->alpha_mode == SCN::eAlphaMode::BLEND) { //objects with transparency
+		Matrix44 model2 = node->model; //can't use getters on a const! //TODO: fix this shit, translation is last row
+		float dist = std::sqrt(std::pow(model2.getTranslation().x - camera->eye.x, 2) + std::pow(model2.getTranslation().y - camera->eye.y, 2) + std::pow(model2.getTranslation().z - camera->eye.z, 2));
+		//node->distance_to_camera = dist;
+		semitransparent_objects.push_back(node);
+	}
+	else //other objects
+	{
+		Matrix44 model2 = node->model; //can't use getters on a const! //TODO: fix this shit, translation is last row
+		float dist = std::sqrt(std::pow(model2.getTranslation().x - camera->eye.x, 2) + std::pow(model2.getTranslation().y - camera->eye.y, 2) + std::pow(model2.getTranslation().z - camera->eye.z, 2));
+		//node->distance_to_camera = dist;
+		default_objects.push_back(node);
+	}
 	//iterate recursively with children
-	for (int i = 0; i < node->children.size(); ++i)
-		renderNode( node->children[i], camera);
+	for (int i = 0; i < node->children.size(); ++i) {
+		categorizeNodes(node->children[i], camera);
+	}
 }
 
 //renders a mesh given its transform and material
-void Renderer::renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material, bool SemitransparentPass)
+void Renderer::renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material)
 {
 	//in case there is nothing to do
 	if (!mesh || !mesh->getNumVertices() || !material )
@@ -196,20 +222,8 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN
 	//lab1: send to global renderable vector, postpone rendering
 	if (material->alpha_mode == SCN::eAlphaMode::BLEND)
 	{
-		if (SemitransparentPass) {
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		}
-		else {
-			sRenderable transparent_node;
-			transparent_node.model = model;
-			transparent_node.mesh = mesh;
-			transparent_node.material = material;
-			Matrix44 model2 = model; //can't use getters on a const! //TODO: fix this shit, dont need model2
-			transparent_node.distanceToCamera = std::sqrt(std::pow(model2.getTranslation().x - camera->eye.x, 2) + std::pow(model2.getTranslation().y - camera->eye.y, 2) + std::pow(model2.getTranslation().z - camera->eye.z, 2));
-			blendingNodes.push_back(transparent_node);
-			return;
-		}
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 	else {
 		glDisable(GL_BLEND);
@@ -220,9 +234,9 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN
 	else
 		glEnable(GL_CULL_FACE);
 
-	if (SemitransparentPass == false) {
-		glDisable(GL_CULL_FACE);
-	}
+	//if (SemitransparentPass == false) {
+	//	glDisable(GL_CULL_FACE);
+	//}
 
     assert(glGetError() == GL_NO_ERROR);
 
@@ -266,7 +280,7 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, GFX::Mesh* mesh, SCN
 }
 
 
-void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material, bool SemitransparentPass)
+void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mesh, SCN::Material* material)
 {
 	//in case there is nothing to do
 	if (!mesh || !mesh->getNumVertices() || !material)
@@ -290,20 +304,8 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	//lab1: send to global renderable vector, postpone rendering
 	if (material->alpha_mode == SCN::eAlphaMode::BLEND)
 	{
-		if (SemitransparentPass) {
 			glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		}
-		else {
-			sRenderable transparent_node;
-			transparent_node.model = model;
-			transparent_node.mesh = mesh;
-			transparent_node.material = material;
-			Matrix44 model2 = model; //can't use getters on a const! //TODO: fix this shit, translation is last row
-			transparent_node.distanceToCamera = std::sqrt(std::pow(model2.getTranslation().x - camera->eye.x, 2) + std::pow(model2.getTranslation().y - camera->eye.y, 2) + std::pow(model2.getTranslation().z - camera->eye.z, 2));
-			blendingNodes.push_back(transparent_node);
-			return;
-		}
 	}
 	else {
 		glDisable(GL_BLEND);
@@ -314,9 +316,9 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	else
 		glEnable(GL_CULL_FACE);
 
-	if (SemitransparentPass == false) {
-		glDisable(GL_CULL_FACE);
-	}
+	//if (SemitransparentPass == false) {
+	//	glDisable(GL_CULL_FACE);
+	//}
 
 	assert(glGetError() == GL_NO_ERROR);
 
@@ -367,7 +369,8 @@ void SCN::Renderer::cameraToShader(Camera* camera, GFX::Shader* shader)
 }
 
 void SCN::Renderer::lightToShader(LightEntity* light, GFX::Shader* shader) { //implemented as seen in class //TODO: change for SP and MP
-	shader->setUniform("u_lightpos", light->root.model.getTranslation());
+	shader->setUniform("u_light_pos", light->root.model.getTranslation());
+	shader->setUniform("u_light_col", light->color * light->intensity);
 }
 
 #ifndef SKIP_IMGUI

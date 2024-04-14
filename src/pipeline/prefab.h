@@ -31,6 +31,7 @@ namespace SCN {
 		static int s_NodeID;
 		static Node* s_selected;
 		int m_Id;
+		float distance_to_camera;
 
 	public:
 

@@ -73,7 +73,7 @@ namespace SCN {
 		bool visible;
 		uint8 layers;
 
-		BaseEntity() { scene = nullptr; visible = true; layers = 3; }
+		BaseEntity() { scene = nullptr; visible = true; layers = 3;}
 		virtual ~BaseEntity() { assert(!scene); if (s_selected == this) s_selected = nullptr; };
 		
 		virtual void configure(cJSON* json) {}

@@ -121,11 +121,11 @@ uniform vec4 u_color;
 uniform sampler2D u_texture;
 uniform float u_time;
 uniform float u_alpha_cutoff;
+
 uniform vec3 u_ambient_light;
 
-const int MAX_LIGHTS = 10; //change if needed
-uniform vec3 u_light_pos[MAX_LIGHTS];
-uniform vec3 u_light_color[MAX_LIGHTS];
+uniform vec3 u_light_pos;
+uniform vec3 u_light_col;
 
 out vec4 FragColor;
 
@@ -137,6 +137,14 @@ void main()
 
 	if(color.a < u_alpha_cutoff)
 		discard;
+
+	vec3 L = u_light_pos - v_world_position;
+	L= normalize(L);
+	vec3 N = normalize(v_normal);
+	//float NdotL = clamp(dot(N, L), 0.0, 1.0); //pixel facing light?
+	//float lightDist = distance(u_light_pos, v_world_position);
+	//float att_factor = 1.0/lightDist; //attenuate pixels by distance
+	//light += (NdotL * u_light_col) *att_factor;
 
 	FragColor.xyz = color.xyz * u_ambient_light;
 	FragColor.a = color.a;

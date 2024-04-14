@@ -21,6 +21,7 @@ Node* Node::s_selected = nullptr;
 Node::Node() : parent(nullptr), mesh(nullptr), material(nullptr), visible(true)
 {
 	m_Id = s_NodeID++;
+	//distance_to_camera = NULL;
 }
 
 Node::~Node()
