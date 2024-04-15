@@ -124,6 +124,16 @@ uniform float u_time;
 uniform float u_alpha_cutoff;
 
 uniform sampler2D u_normalmap;
+uniform int u_use_normalmap;
+
+uniform sampler2D u_emissive;
+uniform vec3 u_emissive_factor;
+uniform int u_use_emissive;
+
+uniform sampler2D u_occlusion;
+uniform sampler2D u_metal_roughness;
+uniform int u_use_occlusion;
+uniform int u_use_specular;
 
 uniform vec3 u_ambient_light;
 
@@ -186,7 +196,20 @@ void main()
 	vec3 N = normalize(v_normal);
 
 	vec3 normal_pixel = texture( u_normalmap, v_uv ).xyz;
-	N = perturbNormal(N,v_world_position, v_uv , normal_pixel);
+	if (u_use_normalmap == 1) {
+		N = perturbNormal(N,v_world_position, v_uv , normal_pixel);
+	}
+
+	vec3 emissive_pixel = texture( u_emissive, v_uv ).xyz;
+	if (u_use_emissive == 1) {
+		light += emissive_pixel * u_emissive_factor;
+	}
+	if (u_use_occlusion == 1) {
+		float occlusion1 = texture( u_metal_roughness, v_uv).r;
+		float occlusion2 = length(texture( u_occlusion, v_uv).rgba);
+		float trueOcclusion = occlusion1*occlusion2;
+		light *= trueOcclusion;
+	}
 
 	for (int i=0; i<MAX_LIGHTS; i++) {
 		if (i<u_num_lights) {
@@ -212,12 +235,12 @@ void main()
 				att_factor = att_factor/u_max_distance[i];
 				att_factor = max(att_factor, 0.0);
 
-				float cos_angle = dot(u_light_front[i], -L);
+				float cos_angle = dot(u_light_front[i], L);
 				if (cos_angle < u_cone_info[i].x) {
 					NdotL = 0.0;
 				}
 				else if (cos_angle < u_cone_info[i].y) {
-					NdotL *= 1.0 - (cos_angle - u_cone_info[i].x) / (u_cone_info[i].y - u_cone_info[i].x);
+					NdotL *= (cos_angle - u_cone_info[i].x) / (u_cone_info[i].y - u_cone_info[i].x);
 				}
 
 
@@ -230,7 +253,6 @@ void main()
 			}
 		}
 	}
-
 	FragColor.xyz = color.xyz * light;
 	FragColor.a = color.a;
 }
@@ -296,7 +318,7 @@ void main()
 	else if (u_light_type == 2) { 		//spot lights
 		vec3 L = u_light_pos - v_world_position;
 		L= normalize(L);
-		float cos_angle = dot(u_light_front, -L);
+		float cos_angle = dot(u_light_front, L);
 		vec3 N = normalize(v_normal);
 		float NdotL = clamp(dot(N, L), 0.0, 1.0); 		//how much is pixel facing light
 

@@ -10,7 +10,7 @@ renderables (didnt use structure seen in the lesson - done using the alredy exis
 alpha elements rendered last and sorted by distance
 
 - Phong: 
-ambient light
+ambient light + emissive + occlusion
 point light
 directional light
 spot light (TODO)
@@ -27,3 +27,11 @@ frustum culling (TODO, test if sphere overlaps with bounding boxes and camera Bo
 Render lights using single pass or multi pass implementation.
 - Render with lights		
 Activate lab 1 implementation.
+- Enable normals
+Account for normalmaps for rendering
+- Enable occlusion
+TODO
+- Enable emissive
+Accouns for emissive texture when rendering
+- Enable specular
+TODO
