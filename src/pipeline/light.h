@@ -8,7 +8,8 @@ namespace SCN {
 		NO_LIGHT = 0,
 		POINT = 1,
 		SPOT = 2,
-		DIRECTIONAL = 3
+		DIRECTIONAL = 3,
+		AMBIENT = 4
 	};
 
 	class LightEntity : public BaseEntity

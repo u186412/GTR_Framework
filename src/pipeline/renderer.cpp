@@ -319,7 +319,7 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	glEnable(GL_DEPTH_TEST);
 
 	//chose a shader
-	shader = GFX::Shader::Get("lightSP"); //TO-DO: sp or mp
+	shader = use_multipass ? GFX::Shader::Get("lightMP") : GFX::Shader::Get("lightSP");
 
 	assert(glGetError() == GL_NO_ERROR);
 
@@ -331,7 +331,6 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	//upload uniforms
 	shader->setUniform("u_model", model);
 	cameraToShader(camera, shader);
-	lightToShaderSP(shader); //TO-DO: multiple lights
 	float t = getTime();
 	shader->setUniform("u_time", t);
 	shader->setUniform("u_ambient_light", scene->ambient_light);
@@ -346,8 +345,24 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	if (render_wireframe)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-	//do the draw call that renders the mesh into the screen
-	mesh->render(GL_TRIANGLES);
+	if (use_multipass) {
+		if (material->alpha_mode != SCN::eAlphaMode::BLEND) {
+			glDisable(GL_BLEND);
+		}
+		glDepthFunc(GL_LEQUAL);
+		baseRenderMP(mesh, shader);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		for (int i = 0; i < lights.size(); i++) {
+			lightToShaderMP(lights[i], shader);
+			mesh->render(GL_TRIANGLES);
+		}
+		glDepthFunc(GL_LESS);
+	}
+	else {
+		lightToShaderSP(shader);
+		mesh->render(GL_TRIANGLES);	//do the draw call that renders the mesh into the screen
+	}
 
 	//disable shader
 	shader->disable();
@@ -383,8 +398,31 @@ void SCN::Renderer::lightToShaderSP(GFX::Shader* shader) {
 	shader->setUniform3Array("u_light_pos", (float*)&light_positions, MAX_LIGHTS_SP);
 	shader->setUniform3Array("u_light_front", (float*)&light_fronts, MAX_LIGHTS_SP);
 	shader->setUniform3Array("u_light_col", (float*)&light_colors, MAX_LIGHTS_SP);
+	shader->setUniform3Array("u_cone_info", (float*)&cones_info, MAX_LIGHTS_SP);
 	shader->setUniform1Array("u_max_distance", (float*)&max_distances, MAX_LIGHTS_SP);
 	shader->setUniform1Array("u_light_type", (int*)&light_types, MAX_LIGHTS_SP);
+}
+
+void SCN::Renderer::lightToShaderMP(LightEntity* light, GFX::Shader* shader) {
+	Vector3f light_position = light->root.model.getTranslation();
+	Vector3f light_front = light->root.model.frontVector().normalize();
+	Vector3f light_color = light->color * light->intensity;
+	Vector2f cone_info = light->cone_info;
+	float max_distance = light->max_distance;
+	int light_type = (int)light->light_type;
+
+	shader->setUniform("u_light_pos", light_position);
+	shader->setUniform("u_light_front", light_front);
+	shader->setUniform("u_light_col", light_color);
+	shader->setUniform("u_cone_info", cone_info);
+	shader->setUniform("u_max_distance", max_distance);
+	shader->setUniform("u_light_type", light_type);
+}
+
+void SCN::Renderer::baseRenderMP(GFX::Mesh* mesh, GFX::Shader* shader) {
+	int light_type = 4; //defined as ambient light (u_ambient_light alredy passed to shader)
+	shader->setUniform("u_light_type", light_type);
+	mesh->render(GL_TRIANGLES);
 }
 
 #ifndef SKIP_IMGUI
