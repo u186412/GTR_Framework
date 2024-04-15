@@ -29,6 +29,7 @@ namespace SCN {
 		bool render_boundaries;
 		bool use_multipass;
 		bool render_lights;
+		bool disable_lights;
 
 		GFX::Texture* skybox_cubemap;
 

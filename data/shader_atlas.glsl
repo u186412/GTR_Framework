@@ -123,6 +123,8 @@ uniform sampler2D u_texture;
 uniform float u_time;
 uniform float u_alpha_cutoff;
 
+uniform sampler2D u_normalmap;
+
 uniform vec3 u_ambient_light;
 
 uniform vec3 u_light_pos[MAX_LIGHTS];
@@ -140,6 +142,35 @@ uniform int u_num_lights;
 
 out vec4 FragColor;
 
+mat3 cotangent_frame(vec3 N, vec3 p, vec2 uv)
+{
+	// get edge vectors of the pixel triangle
+	vec3 dp1 = dFdx( p );
+	vec3 dp2 = dFdy( p );
+	vec2 duv1 = dFdx( uv );
+	vec2 duv2 = dFdy( uv );
+	
+	// solve the linear system
+	vec3 dp2perp = cross( dp2, N );
+	vec3 dp1perp = cross( N, dp1 );
+	vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+	vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+ 
+	// construct a scale-invariant frame 
+	float invmax = inversesqrt( max( dot(T,T), dot(B,B) ) );
+	return mat3( T * invmax, B * invmax, N );
+}
+
+// assume N, the interpolated vertex normal and 
+// WP the world position
+//vec3 normal_pixel = texture2D( normalmap, uv ).xyz; 
+vec3 perturbNormal(vec3 N, vec3 WP, vec2 uv, vec3 normal_pixel)
+{
+	normal_pixel = normal_pixel * 255./127. - 128./127.;
+	mat3 TBN = cotangent_frame(N, WP, uv);
+	return normalize(TBN * normal_pixel);
+}
+
 void main()
 {
 	vec2 uv = v_uv;
@@ -149,17 +180,22 @@ void main()
 	if(color.a < u_alpha_cutoff)
 		discard;
 
-	vec3 light = u_ambient_light;
+	vec3 light = vec3(0.0, 0.0, 0.0);
+	light += u_ambient_light;
+
+	vec3 N = normalize(v_normal);
+
+	vec3 normal_pixel = texture( u_normalmap, v_uv ).xyz;
+	N = perturbNormal(N,v_world_position, v_uv , normal_pixel);
 
 	for (int i=0; i<MAX_LIGHTS; i++) {
 		if (i<u_num_lights) {
 			if (u_light_type[i] == 1) { 		//point lights
 				vec3 L = u_light_pos[i] - v_world_position;
 				L= normalize(L);
-				vec3 N = normalize(v_normal);
 				float NdotL = clamp(dot(N, L), 0.0, 1.0); 		//how much is pixel facing light
+				
 				float lightDist = distance(u_light_pos[i], v_world_position);
-
 				float att_factor = u_max_distance[i] - lightDist;
 				att_factor = att_factor/u_max_distance[i];
 				att_factor = max(att_factor, 0.0);
@@ -169,26 +205,26 @@ void main()
 			else if (u_light_type[i] == 2) { 		//spot lights
 				vec3 L = u_light_pos[i] - v_world_position;
 				L= normalize(L);
-				float cos_angle = dot(u_light_front[i], -L);
-				vec3 N = normalize(v_normal);
 				float NdotL = clamp(dot(N, L), 0.0, 1.0); 		//how much is pixel facing light
-
-				if (cos_angle < u_cone_info[i].x) {
-					NdotL = 0.0;
-				}
-				else if (cos_angle < u_cone_info[i].y) {
-					NdotL *= (cos_angle - u_cone_info[i].x)/(u_cone_info[i].y - u_cone_info[i].x);
-				}
+				
 				float lightDist = distance(u_light_pos[i], v_world_position);
 				float att_factor = u_max_distance[i] - lightDist;
 				att_factor = att_factor/u_max_distance[i];
 				att_factor = max(att_factor, 0.0);
 
+				float cos_angle = dot(u_light_front[i], -L);
+				if (cos_angle < u_cone_info[i].x) {
+					NdotL = 0.0;
+				}
+				else if (cos_angle < u_cone_info[i].y) {
+					NdotL *= 1.0 - (cos_angle - u_cone_info[i].x) / (u_cone_info[i].y - u_cone_info[i].x);
+				}
+
+
 				light += (NdotL * u_light_col[i]) * att_factor;
 			}
 			else if (u_light_type[i] == 3) {		//directional lights
 				vec3 L = u_light_front[i];
-				vec3 N = normalize(v_normal);
 				float NdotL = clamp(dot(N, L), 0.0, 1.0);
 				light += NdotL * u_light_col[i];
 			}
@@ -198,6 +234,7 @@ void main()
 	FragColor.xyz = color.xyz * light;
 	FragColor.a = color.a;
 }
+
 
 \lightMP.fs
 

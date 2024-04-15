@@ -45,6 +45,7 @@ Renderer::Renderer(const char* shader_atlas_filename)
 	skybox_cubemap = nullptr;
 	use_multipass = false;
 	render_lights = true;
+	disable_lights = false;
 
 	if (!GFX::Shader::LoadAtlas(shader_atlas_filename))
 		exit(1);
@@ -99,7 +100,7 @@ void Renderer::renderScene(SCN::Scene* scene, Camera* camera)
 			if (pent->prefab)
 				categorizeNodes(&pent->root, camera);
 		}
-		else if (ent->getType() == eEntityType::LIGHT) { //light objects
+		else if (ent->getType() == eEntityType::LIGHT && !disable_lights) { //light objects
 			//IDEA: test sphere in frustum to cull invisible point (+spot) lights
 			//IDEA: test spheres to bounding boxes and cull invisible lights
 			//TO-DO: pasar primero antes de render!! otro bucle!
@@ -286,17 +287,26 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 
 	//define locals to simplify coding
 	GFX::Shader* shader = NULL;
-	GFX::Texture* texture = NULL;
+	std::vector<GFX::Texture*> textures;
+	GFX::Texture* colorTexture = NULL; textures.push_back(colorTexture);
+	GFX::Texture* normalMap = NULL; textures.push_back(normalMap);
 	Camera* camera = Camera::current;
 
-	texture = material->textures[SCN::eTextureChannel::ALBEDO].texture;
+	colorTexture = material->textures[SCN::eTextureChannel::ALBEDO].texture;
+	normalMap = material->textures[SCN::eTextureChannel::NORMALMAP].texture;
+	
 	//TO-DO implement all this, check ppt
-	//texture = material->emissive_texture;
+	//texture = material->emissive_texture;s
 	//texture = material->metallic_roughness_texture;
 	//texture = material->normal_texture;
 	//texture = material->occlusion_texture;
-	if (texture == NULL)
-		texture = GFX::Texture::getWhiteTexture(); //a 1x1 white texture
+	// 
+
+	//TODO make this better
+	if (colorTexture == NULL) 
+		colorTexture = GFX::Texture::getWhiteTexture(); //a 1x1 white texture
+	if (normalMap == NULL)
+		normalMap = GFX::Texture::getWhiteTexture();
 
 	//select the blending
 	if (material->alpha_mode == SCN::eAlphaMode::BLEND)
@@ -336,8 +346,9 @@ void Renderer::renderMeshWithMaterialLights(const Matrix44 model, GFX::Mesh* mes
 	shader->setUniform("u_ambient_light", scene->ambient_light);
 
 	shader->setUniform("u_color", material->color);
-	if (texture)
-		shader->setUniform("u_texture", texture, 0);
+
+	shader->setUniform("u_texture", colorTexture, 0);
+	shader->setUniform("u_normalmap", normalMap, 1);
 
 	//this is used to say which is the alpha threshold to what we should not paint a pixel on the screen (to cut polygons according to texture alpha)
 	shader->setUniform("u_alpha_cutoff", material->alpha_mode == SCN::eAlphaMode::MASK ? material->alpha_cutoff : 0.001f);
@@ -398,7 +409,7 @@ void SCN::Renderer::lightToShaderSP(GFX::Shader* shader) {
 	shader->setUniform3Array("u_light_pos", (float*)&light_positions, MAX_LIGHTS_SP);
 	shader->setUniform3Array("u_light_front", (float*)&light_fronts, MAX_LIGHTS_SP);
 	shader->setUniform3Array("u_light_col", (float*)&light_colors, MAX_LIGHTS_SP);
-	shader->setUniform3Array("u_cone_info", (float*)&cones_info, MAX_LIGHTS_SP);
+	shader->setUniform2Array("u_cone_info", (float*)&cones_info, MAX_LIGHTS_SP);
 	shader->setUniform1Array("u_max_distance", (float*)&max_distances, MAX_LIGHTS_SP);
 	shader->setUniform1Array("u_light_type", (int*)&light_types, MAX_LIGHTS_SP);
 }
@@ -434,6 +445,9 @@ void Renderer::showUI()
 	ImGui::Checkbox("Boundaries", &render_boundaries);
 	ImGui::Checkbox("Multipass lights", &use_multipass);
 	ImGui::Checkbox("Render with lights", &render_lights);
+	ImGui::Checkbox("Disable lights", &disable_lights);
+
+
 
 	//add here your stuff
 	//...
