@@ -53,6 +53,11 @@ Renderer::Renderer(const char* shader_atlas_filename)
 
 	sphere.createSphere(1.0f);
 	sphere.uploadToVRAM();
+
+	for (int i = 0; i < 30; i++) {
+		std::cout << " " << std::endl;
+	}
+	std::cout << "------------go copy someone else-----------------------" << std::endl;
 }
 
 void Renderer::setupScene()

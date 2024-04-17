@@ -187,73 +187,7 @@ void main()
 	vec4 color = u_color;
 	color *= texture( u_texture, v_uv );
 
-	if(color.a < u_alpha_cutoff)
-		discard;
-
-	vec3 light = vec3(0.0, 0.0, 0.0);
-	light += u_ambient_light;
-
-	vec3 N = normalize(v_normal);
-
-	vec3 normal_pixel = texture( u_normalmap, v_uv ).xyz;
-	if (u_use_normalmap == 1) {
-		N = perturbNormal(N,v_world_position, v_uv , normal_pixel);
-	}
-
-	vec3 emissive_pixel = texture( u_emissive, v_uv ).xyz;
-	if (u_use_emissive == 1) {
-		light += emissive_pixel * u_emissive_factor;
-	}
-	if (u_use_occlusion == 1) {
-		float occlusion1 = texture( u_metal_roughness, v_uv).r;
-		float occlusion2 = length(texture( u_occlusion, v_uv).rgba);
-		float trueOcclusion = occlusion1*occlusion2;
-		light *= trueOcclusion;
-	}
-
-	for (int i=0; i<MAX_LIGHTS; i++) {
-		if (i<u_num_lights) {
-			if (u_light_type[i] == 1) { 		//point lights
-				vec3 L = u_light_pos[i] - v_world_position;
-				L= normalize(L);
-				float NdotL = clamp(dot(N, L), 0.0, 1.0); 		//how much is pixel facing light
-				
-				float lightDist = distance(u_light_pos[i], v_world_position);
-				float att_factor = u_max_distance[i] - lightDist;
-				att_factor = att_factor/u_max_distance[i];
-				att_factor = max(att_factor, 0.0);
-
-				light += (NdotL * u_light_col[i]) * att_factor;
-			}
-			else if (u_light_type[i] == 2) { 		//spot lights
-				vec3 L = u_light_pos[i] - v_world_position;
-				L= normalize(L);
-				float NdotL = clamp(dot(N, L), 0.0, 1.0); 		//how much is pixel facing light
-				
-				float lightDist = distance(u_light_pos[i], v_world_position);
-				float att_factor = u_max_distance[i] - lightDist;
-				att_factor = att_factor/u_max_distance[i];
-				att_factor = max(att_factor, 0.0);
-
-				float cos_angle = dot(u_light_front[i], L);
-				if (cos_angle < u_cone_info[i].x) {
-					NdotL = 0.0;
-				}
-				else if (cos_angle < u_cone_info[i].y) {
-					NdotL *= (cos_angle - u_cone_info[i].x) / (u_cone_info[i].y - u_cone_info[i].x);
-				}
-
-
-				light += (NdotL * u_light_col[i]) * att_factor;
-			}
-			else if (u_light_type[i] == 3) {		//directional lights
-				vec3 L = u_light_front[i];
-				float NdotL = clamp(dot(N, L), 0.0, 1.0);
-				light += NdotL * u_light_col[i];
-			}
-		}
-	}
-	FragColor.xyz = color.xyz * light;
+	FragColor.xyz = vec3(0);
 	FragColor.a = color.a;
 }
 
@@ -300,52 +234,7 @@ void main()
 	if(color.a < u_alpha_cutoff)
 		discard;
 
-	vec3 light = vec3(0.0, 0.0, 0.0);
-
-	if (u_light_type == 1) { 		//point lights
-		vec3 L = u_light_pos - v_world_position;
-		L= normalize(L);
-		vec3 N = normalize(v_normal);
-		float NdotL = clamp(dot(N, L), 0.0, 1.0); 		//how much is pixel facing light
-		float lightDist = distance(u_light_pos, v_world_position);
-
-		float att_factor = u_max_distance - lightDist;
-		att_factor = att_factor/u_max_distance;
-		att_factor = max(att_factor, 0.0);
-
-		light += (NdotL * u_light_col) * att_factor;
-	}
-	else if (u_light_type == 2) { 		//spot lights
-		vec3 L = u_light_pos - v_world_position;
-		L= normalize(L);
-		float cos_angle = dot(u_light_front, L);
-		vec3 N = normalize(v_normal);
-		float NdotL = clamp(dot(N, L), 0.0, 1.0); 		//how much is pixel facing light
-
-		if (cos_angle < u_cone_info.x) {
-			NdotL = 0.0;
-		}
-		else if (cos_angle < u_cone_info.y) {
-			NdotL *= (cos_angle - u_cone_info.x)/(u_cone_info.y - u_cone_info.x);
-		}
-		float lightDist = distance(u_light_pos, v_world_position);
-		float att_factor = u_max_distance - lightDist;
-		att_factor = att_factor/u_max_distance;
-		att_factor = max(att_factor, 0.0);
-
-		light += (NdotL * u_light_col) * att_factor;
-	}
-	else if (u_light_type == 3) {		//directional lights
-		vec3 L = u_light_front;
-		vec3 N = normalize(v_normal);
-		float NdotL = clamp(dot(N, L), 0.0, 1.0);
-		light += NdotL * u_light_col;
-	}
-	else if (u_light_type == 4) {		//ambient light (first pass)
-		light += u_ambient_light;
-	}
-
-	FragColor.xyz = color.xyz * light;
+	FragColor.xyz = vec3(0);
 	FragColor.a = color.a;
 }
 
